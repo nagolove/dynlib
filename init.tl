@@ -8,6 +8,70 @@ require 'pipeline'
 --require "love.timer"
 
 love.filesystem.setRequirePath("?.lua;?/init.lua;scenes/empty_mt/?.lua")
+
+local cpath = love.filesystem.getCRequirePath()
+print('cpath before', cpath)
+--love.filesystem.setCRequirePath(cpath .. ";ddd/target/debug/?.so")
+print('package.cpath', package.cpath)
+--love.filesystem.setCRequirePath("ddd/target/debug/lib?.so")
+--package.cpath = package.cpath .. ";ddd/target/lib?.so"
+print('package.cpath after', package.cpath)
+cpath = love.filesystem.getCRequirePath()
+print('cpath after', cpath)
+--]]
+
+require 'ffi'
+local C = require 'ffi'
+C.cdef [[
+int32_t add(int32_t a, int32_t b);
+typedef void(*Callback)(int32_t a, int32_t b, void* ptr, int64_t f);
+void pump_iron(Callback a, Callback b);
+]]
+require 'ddd'
+
+local ddd_C = C.load 'ddd' as DDD
+local a, b = 200, 1
+--print('add', ddd_C.add(a, b))
+
+local function test_external_add()
+    local random = love.math.random
+    local format = string.format
+    for i = 1, 1000000 do
+        local a, b = random(1, 100000), random(1, 100000)
+        --print('a, b', a, b)
+        local should_be = a + b
+        local res = ddd_C.add(a, b)
+        if should_be ~= res then
+            error(format("%d + %d ~= %d, res = %d", a, b, should_be, res))
+        end
+    end
+end
+
+local function pumper1(a: number, b: number, ptr: any, f: number)
+    assert(a + 1 == b)
+end
+
+local function pumper2(a: number, b: number, ptr: any, f: number)
+    assert(a - 1 == b)
+end
+
+local function test_pump_iron()
+    local random = love.math.random
+    local format = string.format
+    local cb1 = C.cast('Callback', pumper1) as DDD.Pumper
+    local cb2 = C.cast('Callback', pumper2) as DDD.Pumper
+    --for i = 1, 1000000 do
+    for i = 1, 10 do
+        ddd_C.pump_iron(cb1, cb2)
+    end
+end
+
+test_external_add()
+test_pump_iron()
+
+--local ddd = require 'ddd'
+--local ddd = require 'ddd/target/debug/ddd'
+
 local i18n = require "i18n"
 --local colorize = require 'ansicolors2'.ansicolors
 --local format = string.format
@@ -116,7 +180,7 @@ local function render()
     pipeline:close()
 
     local x, y = love.mouse.getPosition()
-    print('mouse x, y', x, y)
+    --print('mouse x, y', x, y)
     local rad = 50
     pipeline:open('circle_under_mouse')
     pipeline:push(y)
@@ -140,7 +204,7 @@ local function mainloop()
                 elseif evtype == "keypressed" then
                     local key = (e as {string})[2]
                     local scancode = (e as {string})[3]
-                    print('keypressed', key, scancode)
+                    --print('keypressed', key, scancode)
                     if scancode == "escape" then
                         love.event.quit()
                     end

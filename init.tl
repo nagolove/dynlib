@@ -1,34 +1,50 @@
 print('hello. I scene from separated thread')
 
---local tl = require "tl"
 require "love"
 require "love_inc".require_pls_nographic()
 require 'pipeline'
-
---require "love.timer"
 
 love.filesystem.setRequirePath("?.lua;?/init.lua;scenes/empty_mt/?.lua")
 
 local cpath = love.filesystem.getCRequirePath()
 print('cpath before', cpath)
---love.filesystem.setCRequirePath(cpath .. ";ddd/target/debug/?.so")
 print('package.cpath', package.cpath)
---love.filesystem.setCRequirePath("ddd/target/debug/lib?.so")
---package.cpath = package.cpath .. ";ddd/target/lib?.so"
 print('package.cpath after', package.cpath)
 cpath = love.filesystem.getCRequirePath()
 print('cpath after', cpath)
---]]
 
+--[[
 require 'ffi'
 local C = require 'ffi'
 C.cdef [[
 int32_t add(int32_t a, int32_t b);
-typedef void(*Callback)(int32_t a, int32_t b, void* ptr, int64_t f);
-void pump_iron(Callback a, Callback b);
-]]
-require 'ddd'
 
+typedef void(*Callback)(int32_t a, int32_t b, void* ptr, int64_t f);
+typedef void(*Callback_noargs)();
+typedef void(*Callback_1arg)(int32_t a);
+
+void pump_iron(Callback a, Callback b);
+void pump_iron_noargs(Callback_noargs a);
+void pump_iron_1arg(Callback_1arg a);
+]]
+--]]
+
+local inspect = require "inspect"
+
+local ddd = require 'ddd'
+local ok, errmsg = pcall(function()
+    ddd.hello("sneg")
+
+    print('get_table', inspect(ddd.get_table()))
+
+    ddd.init()
+end) as (boolean, string)
+
+if not ok then
+    print('errmsg', errmsg)
+end
+
+--[[
 local ddd_C = C.load 'ddd' as DDD
 local a, b = 200, 1
 --print('add', ddd_C.add(a, b))
@@ -49,10 +65,28 @@ end
 
 local function pumper1(a: number, b: number, ptr: any, f: number)
     assert(a + 1 == b)
+    print('pumper3')
+    print('a', a)
+    print('b', b)
+    print('ptr', ptr)
+    print('f', f)
 end
 
 local function pumper2(a: number, b: number, ptr: any, f: number)
     assert(a - 1 == b)
+    print('pumper2')
+    print('a', a)
+    print('b', b)
+    print('ptr', ptr)
+    print('f', f)
+end
+
+local function pumper_noargs()
+    print('pumper_noargs')
+end
+
+local function pump_iron_1arg(a: number)
+    print('pump_iron_1arg', a)
 end
 
 local function test_pump_iron()
@@ -60,39 +94,26 @@ local function test_pump_iron()
     local format = string.format
     local cb1 = C.cast('Callback', pumper1) as DDD.Pumper
     local cb2 = C.cast('Callback', pumper2) as DDD.Pumper
-    --for i = 1, 1000000 do
-    for i = 1, 10 do
-        ddd_C.pump_iron(cb1, cb2)
+
+    local cb_noargs = C.cast('Callback_noargs', pumper_noargs) as DDD.Pumper_noarg
+    local cb_1arg = C.cast('Callback_1arg', pump_iron_1arg) as DDD.Pumper_1arg
+
+    for i = 1, 2 do
+    --for i = 1, 10 do
+        --ddd_C.pump_iron(cb1, cb2)
     end
+    ddd_C.pump_iron_noargs(cb_noargs)
+    --ddd_C.pump_iron_1arg(cb_1arg)
 end
 
-test_external_add()
-test_pump_iron()
+--test_external_add()
+--test_pump_iron()
+--]]
 
 --local ddd = require 'ddd'
 --local ddd = require 'ddd/target/debug/ddd'
 
-local i18n = require "i18n"
---local colorize = require 'ansicolors2'.ansicolors
---local format = string.format
-
---require "external"
---require "common"
-
---package.path = package.path .. ";scenes/automato/?.lua"
-
---local cam = require "camera".new()
---local gr = love.graphics
---local imgui = require "imgui"
---local inspect = require "inspect"
---local keyconfig = require "keyconfig"
---local next = next
---local timer = require "Timer"
-
 local event_channel = love.thread.getChannel("event_channel")
---local draw_ready_channel = love.thread.getChannel("draw_ready_channel")
---local graphic_command_channel = love.thread.getChannel("graphic_command_channel")
---local graphic_code_channel = love.thread.getChannel("graphic_code_channel")
 
 local mx, my = 0, 0
 
@@ -108,20 +129,6 @@ local pipeline = Pipeline.new()
 -- потока.
 
 local function init()
-    i18n.set('en.welcome', 'welcome to this program')
-    i18n.load({
-        en = {
-            good_bye = "good-bye!",
-            age_msg = "your age is %{age}.",
-            phone_msg = {
-                one = "you have one new message.",
-                other = "you have %{count} new messages."
-            }
-        }
-    })
-    print("translated", i18n.translate('welcome'))
-    print("translated", i18n('welcome'))
-
     local rendercode = [[
     while true do
         local w, h = love.graphics.getDimensions()
